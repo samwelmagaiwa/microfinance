@@ -53,9 +53,9 @@ Route::prefix('v1')->group(function () {
             Route::get('client/loans', [LoanController::class, 'clientLoans']);
             Route::get('client/payments', [PaymentController::class, 'clientPayments']);
         });
+        // User info
+        Route::get('user', function (Request $request) {
+            return response()->json(['data' => $request->user()]);
+        });
     });
-});
-
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
 });
