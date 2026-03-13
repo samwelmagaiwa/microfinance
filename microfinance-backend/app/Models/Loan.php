@@ -31,4 +31,16 @@ class Loan extends Model
     {
         return $this->hasMany(Payment::class);
     }
+
+    public function latestPayment()
+    {
+        return $this->hasOne(Payment::class)->latestOfMany();
+    }
+
+    public function nextSchedule()
+    {
+        return $this->hasOne(LoanSchedule::class)
+            ->where('status', 'unpaid')
+            ->orderBy('due_date', 'asc');
+    }
 }

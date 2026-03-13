@@ -14,9 +14,13 @@ class BorrowerRepository implements BorrowerRepositoryInterface
         $this->model = $model;
     }
 
-    public function all()
+    public function all($status = null)
     {
-        return $this->model->all();
+        $query = $this->model->newQuery();
+        if ($status) {
+            $query->where('status', $status);
+        }
+        return $query->get();
     }
 
     public function find($id)

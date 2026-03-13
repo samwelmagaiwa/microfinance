@@ -68,4 +68,9 @@ class User extends Authenticatable
     public function isLoanOfficer(): bool { return $this->role === UserRole::LOAN_OFFICER; }
     public function isSecretary(): bool { return $this->role === UserRole::SECRETARY; }
     public function isClient(): bool { return $this->role === UserRole::CLIENT; }
+    
+    public function borrowers()
+    {
+        return $this->hasMany(Borrower::class);
+    }
 }

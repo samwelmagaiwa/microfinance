@@ -13,9 +13,9 @@ class BorrowerService
         $this->repository = $repository;
     }
 
-    public function getAllBorrowers()
+    public function getAllBorrowers($status = null)
     {
-        return $this->repository->all();
+        return $this->repository->all($status);
     }
 
     public function getBorrower($id)

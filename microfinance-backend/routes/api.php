@@ -36,6 +36,8 @@ Route::prefix('v1')->group(function () {
         Route::middleware('role:admin,managing_director,general_manager,loan_manager')->group(function () {
             // Approval logics, updating terms
             Route::patch('loans/{loan}/approve', [LoanController::class, 'approve']);
+            Route::patch('borrowers/{borrower}/approve', [BorrowerController::class, 'approve']);
+            Route::patch('borrowers/{borrower}/reject', [BorrowerController::class, 'reject']);
         });
 
         // Loan Officer & Secretary
