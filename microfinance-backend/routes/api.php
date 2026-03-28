@@ -21,9 +21,11 @@ Route::prefix('v1')->group(function () {
     // Protected routes
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
-        
-        // Dashboard - accessible by all staff
-        Route::get('dashboard', [DashboardController::class, 'index']);
+
+        // Staff dashboard - versioned and role gated
+        Route::middleware('role:admin,managing_director,general_manager,loan_manager,loan_officer,secretary')->group(function () {
+            Route::get('dashboard', [DashboardController::class, 'index']);
+        });
 
         // Management & GM Routes
         Route::middleware('role:admin,managing_director,general_manager')->group(function () {
@@ -38,6 +40,7 @@ Route::prefix('v1')->group(function () {
             Route::patch('loans/{loan}/approve', [LoanController::class, 'approve']);
             Route::patch('borrowers/{borrower}/approve', [BorrowerController::class, 'approve']);
             Route::patch('borrowers/{borrower}/reject', [BorrowerController::class, 'reject']);
+            Route::get('borrowers/{borrower}/review-history', [BorrowerController::class, 'getReviewHistory']);
         });
 
         // Loan Officer & Secretary

@@ -16,7 +16,7 @@ class BorrowerRepository implements BorrowerRepositoryInterface
 
     public function all($status = null)
     {
-        $query = $this->model->newQuery();
+        $query = $this->model->newQuery()->with(['documents', 'groupSignatories']);
         if ($status) {
             $query->where('status', $status);
         }
@@ -25,7 +25,7 @@ class BorrowerRepository implements BorrowerRepositoryInterface
 
     public function find($id)
     {
-        return $this->model->findOrFail($id);
+        return $this->model->with(['documents', 'groupSignatories'])->findOrFail($id);
     }
 
     public function create(array $data)

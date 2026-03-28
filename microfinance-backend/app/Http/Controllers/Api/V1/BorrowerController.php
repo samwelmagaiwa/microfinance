@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\BorrowerDocument;
+use App\Models\GroupMemberSignatory;
 use App\Services\BorrowerService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class BorrowerController extends Controller
 {
@@ -36,6 +39,12 @@ class BorrowerController extends Controller
 
     public function store(Request $request)
     {
+        $request->merge([
+            'borrower_account_number' => $request->input('borrower_account_number', $request->input('borrower_account_no')),
+            'borrower_oath' => $request->boolean('borrower_oath', $request->boolean('oath_confirmed')),
+            'spouse_work_place' => $request->input('spouse_work_place', $request->input('spouse_workplace')),
+        ]);
+
         $data = $request->validate([
             // Step 1: Profile
             'full_name' => 'required|string|max:255',
@@ -70,6 +79,9 @@ class BorrowerController extends Controller
             'spouse_employer_phone' => 'nullable|string',
             'spouse_monthly_income' => 'nullable|numeric',
             'spouse_consent' => 'nullable|boolean',
+            'spouse_consent_thumbprint' => 'nullable|boolean',
+            'spouse_signature_name' => 'nullable|string',
+            'spouse_signature_date' => 'nullable|date',
             
             // Step 2: Address
             'region' => 'nullable|string',
@@ -79,6 +91,7 @@ class BorrowerController extends Controller
             'house_number' => 'nullable|string',
             'residence_description' => 'nullable|string',
             'residence_type' => 'nullable|string',
+            'residence_type_other' => 'nullable|string',
             'years_at_address' => 'nullable|integer',
             'postal_address' => 'nullable|string',
             
@@ -95,6 +108,7 @@ class BorrowerController extends Controller
             'contract_start_date' => 'nullable|date',
             'salary_payment_method' => 'nullable|string',
             'monthly_salary' => 'nullable|numeric',
+            'net_salary' => 'nullable|numeric',
             'monthly_repayment_capacity' => 'nullable|numeric',
             'other_income' => 'nullable|numeric',
             'other_income_source' => 'nullable|string',
@@ -105,6 +119,19 @@ class BorrowerController extends Controller
             'years_in_business' => 'nullable|integer',
             'monthly_revenue' => 'nullable|numeric',
             'business_capital' => 'nullable|numeric',
+            'business_has_license' => 'nullable|boolean',
+            'business_license_number' => 'nullable|string',
+            'average_monthly_profit' => 'nullable|numeric',
+            'products_services' => 'nullable|string',
+            'project_description' => 'nullable|string',
+            'business_legal_status' => 'nullable|string',
+            'business_occupancy' => 'nullable|string',
+            'landlord_name' => 'nullable|string',
+            'landlord_phone' => 'nullable|string',
+            'landlord_address' => 'nullable|string',
+            'rent_duration' => 'nullable|string',
+            'previous_business_location' => 'nullable|string',
+            'moving_reason' => 'nullable|string',
             
             // Financial
             'existing_loans' => 'nullable|boolean',
@@ -114,9 +141,36 @@ class BorrowerController extends Controller
             'monthly_expenses' => 'nullable|numeric',
             'asset_value' => 'nullable|numeric',
             'other_income_financial' => 'nullable|numeric',
+            'collateral_total_value' => 'nullable|numeric',
+            'other_collaterals' => 'nullable|array',
+            'other_collaterals.*.name' => 'nullable|string',
+            'other_collaterals.*.location' => 'nullable|string',
+            'other_collaterals.*.value' => 'nullable|numeric',
             'bank_name' => 'nullable|string',
             'bank_account' => 'nullable|string',
             'mobile_money_number' => 'nullable|string',
+
+            // Collateral - Vehicle
+            'collateral_vehicle_owner' => 'nullable|string',
+            'collateral_vehicle_type' => 'nullable|string',
+            'collateral_vehicle_reg_no' => 'nullable|string',
+            'collateral_vehicle_engine_no' => 'nullable|string',
+            'collateral_vehicle_chassis_no' => 'nullable|string',
+            'collateral_vehicle_model' => 'nullable|string',
+            'collateral_vehicle_color' => 'nullable|string',
+            'collateral_vehicle_insurance_type' => 'nullable|string',
+            'collateral_vehicle_insurance_provider' => 'nullable|string',
+            'collateral_vehicle_value' => 'nullable|numeric',
+            'collateral_vehicle_forced_sale_value' => 'nullable|numeric',
+
+            // Collateral - Land
+            'collateral_land_type' => 'nullable|string',
+            'collateral_land_owner' => 'nullable|string',
+            'collateral_land_kitalu' => 'nullable|string',
+            'collateral_land_plot_no' => 'nullable|string',
+            'collateral_land_description' => 'nullable|string',
+            'collateral_land_value' => 'nullable|numeric',
+            'collateral_land_forced_sale_value' => 'nullable|numeric',
             
             // Guarantors
             'guarantor1' => 'nullable|array',
@@ -134,9 +188,11 @@ class BorrowerController extends Controller
             'loan_purpose_hospitali' => 'nullable|boolean',
             'loan_purpose_nyingine' => 'nullable|boolean',
             'loan_purpose_other' => 'nullable|string',
+            'loan_main_purpose' => 'nullable|string',
             'repayment_period' => 'nullable|integer',
             'repayment_method' => 'nullable|string',
             'repayment_frequency' => 'nullable|string',
+            'repayment_start_date' => 'nullable|date',
             'repayment_capacity' => 'nullable|numeric',
             'interest_rate' => 'nullable|numeric',
             'mandatory_savings' => 'nullable|numeric',
@@ -171,6 +227,19 @@ class BorrowerController extends Controller
             'local_govt_chairman_title' => 'nullable|string',
             'group_members_list' => 'nullable|string',
             'group_liability_agreed' => 'nullable|boolean',
+            'group_member_signatories' => 'nullable|array',
+            'group_member_signatories.*.sequence' => 'nullable|integer',
+            'group_member_signatories.*.name' => 'nullable|string',
+            'group_member_signatories.*.phone' => 'nullable|string',
+            'group_member_signatories.*.signatureName' => 'nullable|string',
+            'group_member_signatories.*.signedAt' => 'nullable|date',
+            'group_member_signatories.*.thumbprintConfirmed' => 'nullable|boolean',
+            'group_leadership_acknowledgements' => 'nullable|array',
+            'group_leadership_acknowledgements.*.role' => 'nullable|string',
+            'group_leadership_acknowledgements.*.name' => 'nullable|string',
+            'group_leadership_acknowledgements.*.signatureName' => 'nullable|string',
+            'group_leadership_acknowledgements.*.signedAt' => 'nullable|date',
+            'group_leadership_acknowledgements.*.thumbprintConfirmed' => 'nullable|boolean',
 
             // Jikwamue Collateral
             'collateral_vehicle_owner' => 'nullable|string',
@@ -218,54 +287,374 @@ class BorrowerController extends Controller
             'board_member_name' => 'nullable|string',
             'officer_confirmed' => 'nullable|boolean',
             'borrower_oath' => 'nullable|boolean',
+            'borrower_oath_date' => 'nullable|date',
+            'borrower_oath_thumbprint' => 'nullable|boolean',
             'employment_guarantee_confirmed' => 'nullable|boolean',
             'risk_description' => 'nullable|string',
+            'local_govt_verification_date' => 'nullable|date',
+            'local_govt_stamp' => 'nullable|boolean',
+            'proof_of_address_description' => 'nullable|string',
+            'risk_high' => 'nullable|boolean',
+            'risk_medium' => 'nullable|boolean',
+            'risk_low' => 'nullable|boolean',
+
+            // Attachment files
+            'photo' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'id_copy' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'spouse_id_copy' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'work_id_copy' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'employer_letter' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'employer_letter_secondary' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'guarantor_ids' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'bank_statement' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'payslip' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'contract_copy' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'spouse_photo' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'proof_of_address' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'collateral_attachment' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'local_govt_documents' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'rent_agreement' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'guarantor_intro_letter' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'guarantor_photo' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'borrower_intro_letter' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'group_intro_letter' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'group_members_signed_list' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'group_photo' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'permanent_residence_proof' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'business_license_document' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'business_photos' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'guarantor1_photo' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'guarantor2_photo' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
 
-        $data['user_id'] = auth()->id();
+        $attachments = [];
+        $attachmentFields = [
+            'photo',
+            'id_copy',
+            'spouse_id_copy',
+            'work_id_copy',
+            'employer_letter',
+            'employer_letter_secondary',
+            'guarantor_ids',
+            'bank_statement',
+            'payslip',
+            'contract_copy',
+            'spouse_photo',
+            'proof_of_address',
+            'collateral_attachment',
+            'local_govt_documents',
+            'rent_agreement',
+            'guarantor_intro_letter',
+            'guarantor_photo',
+            'borrower_intro_letter',
+            'group_intro_letter',
+            'group_members_signed_list',
+            'group_photo',
+            'permanent_residence_proof',
+            'business_license_document',
+            'business_photos',
+            'guarantor1_photo',
+            'guarantor2_photo',
+        ];
+
+        foreach ($attachmentFields as $field) {
+            if ($request->hasFile($field)) {
+                $path = $request->file($field)->store('borrowers/attachments', 'public');
+                $attachments[$field] = $path;
+                if ($field === 'photo') {
+                    $data['photo_path'] = $path;
+                }
+            }
+        }
+
+        if (!empty($attachments)) {
+            $data['attachments'] = $attachments;
+        }
+
+        $data['user_id'] = $request->user()?->id;
         $data['status'] = \App\Enums\BorrowerStatus::PENDING_LOAN_MANAGER;
+
+        $documentTypes = [
+            'photo',
+            'id_copy',
+            'spouse_id_copy',
+            'work_id_copy',
+            'employer_letter',
+            'employer_letter_secondary',
+            'guarantor_ids',
+            'bank_statement',
+            'payslip',
+            'contract_copy',
+            'spouse_photo',
+            'proof_of_address',
+            'collateral_attachment',
+            'local_govt_documents',
+            'rent_agreement',
+            'guarantor_intro_letter',
+            'guarantor_photo',
+            'borrower_intro_letter',
+            'group_intro_letter',
+            'group_members_signed_list',
+            'group_photo',
+            'permanent_residence_proof',
+            'business_license_document',
+            'business_photos',
+            'guarantor1_photo',
+            'guarantor2_photo',
+        ];
+
+        $borrower = DB::transaction(function () use ($data, $request, $attachments, $documentTypes) {
+            $borrower = $this->service->createBorrower($data);
+
+            foreach ($documentTypes as $type) {
+                if (!isset($attachments[$type]) || !$request->hasFile($type)) {
+                    continue;
+                }
+
+                $file = $request->file($type);
+                $borrower->documents()->create([
+                    'document_type' => $type,
+                    'file_path' => $attachments[$type],
+                    'original_name' => $file->getClientOriginalName(),
+                    'mime_type' => $file->getMimeType(),
+                    'file_size' => $file->getSize(),
+                    'is_required' => in_array($type, ['photo', 'id_copy'], true),
+                ]);
+            }
+
+            $memberSignatories = collect($data['group_member_signatories'] ?? [])
+                ->filter(fn ($row) => !empty($row['name']) || !empty($row['phone']) || !empty($row['signatureName']))
+                ->map(function ($row) {
+                    return [
+                        'category' => 'group_member_witness',
+                        'role' => 'member',
+                        'sequence' => $row['sequence'] ?? null,
+                        'name' => $row['name'] ?? null,
+                        'phone' => $row['phone'] ?? null,
+                        'signature_name' => $row['signatureName'] ?? null,
+                        'signed_at' => $row['signedAt'] ?? null,
+                        'thumbprint_confirmed' => (bool) ($row['thumbprintConfirmed'] ?? false),
+                    ];
+                })->values()->all();
+
+            $leadershipSignatories = collect($data['group_leadership_acknowledgements'] ?? [])
+                ->filter(fn ($row) => !empty($row['name']) || !empty($row['signatureName']))
+                ->map(function ($row, $index) {
+                    return [
+                        'category' => 'group_leadership',
+                        'role' => $row['role'] ?? null,
+                        'sequence' => $index + 1,
+                        'name' => $row['name'] ?? null,
+                        'phone' => null,
+                        'signature_name' => $row['signatureName'] ?? null,
+                        'signed_at' => $row['signedAt'] ?? null,
+                        'thumbprint_confirmed' => (bool) ($row['thumbprintConfirmed'] ?? false),
+                    ];
+                })->values()->all();
+
+            $signatories = array_merge($memberSignatories, $leadershipSignatories);
+            if (!empty($signatories)) {
+                $borrower->groupSignatories()->createMany($signatories);
+            }
+
+            return $borrower->load(['documents', 'groupSignatories']);
+        });
 
         return response()->json([
             'status' => 'success',
             'message' => 'Borrower registered and sent for manager review.',
-            'data' => $this->service->createBorrower($data)
+            'data' => $borrower
         ], 201);
     }
 
     public function approve(Request $request, $id)
     {
-        $borrower = $this->service->getBorrower($id);
-        $user = auth()->user();
-        $nextStatus = null;
+        $payload = $this->normalizeReviewPayload($request);
+        $validated = validator($payload, [
+            'remarks' => 'nullable|string|max:2000',
+            'riskAssessment' => 'nullable|string|max:50',
+            'riskDescription' => 'nullable|string|max:4000',
+            'loanManagerRemarks' => 'nullable|string|max:4000',
+            'gmRemarks' => 'nullable|string|max:4000',
+            'mdRemarks' => 'nullable|string|max:4000',
+            'decision' => 'nullable|string|max:50',
+            'decisionRemarks' => 'nullable|string|max:4000',
+            'decisionName' => 'nullable|string|max:255',
+            'decisionDate' => 'nullable|date',
+        ])->validate();
 
+        $borrower = $this->service->getBorrower($id);
+        $user = $request->user();
+        $nextStatus = null;
+        $updateData = [
+            'risk_assessment' => $validated['riskAssessment'] ?? $borrower->risk_assessment,
+            'risk_description' => $validated['riskDescription'] ?? $borrower->risk_description,
+        ];
+        $decision = $this->normalizeDecision($validated['decision'] ?? null);
+
+        // Loan Manager Approval
         if ($user->isLoanManager() && $borrower->status === \App\Enums\BorrowerStatus::PENDING_LOAN_MANAGER) {
             $nextStatus = \App\Enums\BorrowerStatus::PENDING_GENERAL_MANAGER;
-        } elseif ($user->isGeneralManager() && $borrower->status === \App\Enums\BorrowerStatus::PENDING_GENERAL_MANAGER) {
+            $updateData = array_merge($updateData, [
+                'status' => $nextStatus,
+                'reviewed_by_loan_manager_id' => $user->id,
+                'loan_manager_reviewed_at' => now(),
+                'loan_manager_remarks' => $validated['loanManagerRemarks'] ?? $validated['remarks'] ?? $borrower->loan_manager_remarks,
+            ]);
+        }
+        // General Manager Approval
+        elseif ($user->isGeneralManager() && $borrower->status === \App\Enums\BorrowerStatus::PENDING_GENERAL_MANAGER) {
             $nextStatus = \App\Enums\BorrowerStatus::PENDING_MANAGING_DIRECTOR;
-        } elseif ($user->isManagingDirector() && $borrower->status === \App\Enums\BorrowerStatus::PENDING_MANAGING_DIRECTOR) {
-            $nextStatus = \App\Enums\BorrowerStatus::APPROVED;
+            $updateData = array_merge($updateData, [
+                'status' => $nextStatus,
+                'reviewed_by_gm_id' => $user->id,
+                'gm_reviewed_at' => now(),
+                'gm_remarks' => $validated['gmRemarks'] ?? $validated['remarks'] ?? $borrower->gm_remarks,
+            ]);
+        }
+        // Managing Director Final Approval
+        elseif ($user->isManagingDirector() && $borrower->status === \App\Enums\BorrowerStatus::PENDING_MANAGING_DIRECTOR) {
+            $decision = $decision ?? 'Approved';
+            $nextStatus = match ($decision) {
+                'Conditional' => \App\Enums\BorrowerStatus::CONDITIONAL,
+                'Rejected' => \App\Enums\BorrowerStatus::REJECTED,
+                default => \App\Enums\BorrowerStatus::APPROVED,
+            };
+            $updateData = array_merge($updateData, [
+                'status' => $nextStatus,
+                'reviewed_by_md_id' => $user->id,
+                'md_reviewed_at' => now(),
+                'md_remarks' => $validated['mdRemarks'] ?? $validated['remarks'] ?? $borrower->md_remarks,
+                'board_decision' => $decision,
+                'board_decision_remarks' => $validated['decisionRemarks'] ?? $validated['remarks'] ?? $borrower->board_decision_remarks,
+                'board_member_name' => $validated['decisionName'] ?? $user->name,
+                'board_decision_date' => $validated['decisionDate'] ?? now()->toDateString(),
+            ]);
+
+            if ($nextStatus === \App\Enums\BorrowerStatus::REJECTED) {
+                $updateData = array_merge($updateData, [
+                    'rejected_by_id' => $user->id,
+                    'rejected_at' => now(),
+                    'rejection_reason' => $validated['decisionRemarks'] ?? $validated['remarks'] ?? 'Rejected by Managing Director',
+                ]);
+            }
         }
 
         if (!$nextStatus) {
-            return response()->json(['status' => 'error', 'message' => 'Unauthorized or invalid status transition.'], 403);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized or invalid status transition. Current status: ' . $borrower->status->label()
+            ], 403);
         }
 
-        $this->service->updateBorrower($id, ['status' => $nextStatus]);
+        $this->service->updateBorrower($id, $updateData);
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Application approved to ' . str_replace('_', ' ', $nextStatus->value),
-            'data' => $borrower->fresh()
+            'message' => 'Application approved and forwarded to ' . $nextStatus->getCurrentReviewer(),
+            'data' => $borrower->fresh()->load(['loanManagerReviewer', 'gmReviewer', 'mdReviewer'])
         ]);
     }
 
     public function reject(Request $request, $id)
     {
-        $this->service->updateBorrower($id, ['status' => \App\Enums\BorrowerStatus::REJECTED]);
-        
+        $payload = $this->normalizeReviewPayload($request);
+        $validated = validator($payload, [
+            'reason' => 'required|string|max:2000',
+            'riskAssessment' => 'nullable|string|max:50',
+            'riskDescription' => 'nullable|string|max:4000',
+        ])->validate();
+
+        $borrower = $this->service->getBorrower($id);
+        $user = $request->user();
+
+        // Check if user can reject at current stage
+        $canReject = false;
+        if ($user->isLoanManager() && $borrower->status === \App\Enums\BorrowerStatus::PENDING_LOAN_MANAGER) {
+            $canReject = true;
+        } elseif ($user->isGeneralManager() && $borrower->status === \App\Enums\BorrowerStatus::PENDING_GENERAL_MANAGER) {
+            $canReject = true;
+        } elseif ($user->isManagingDirector() && $borrower->status === \App\Enums\BorrowerStatus::PENDING_MANAGING_DIRECTOR) {
+            $canReject = true;
+        }
+
+        if (!$canReject) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'You are not authorized to reject this application at the current stage.'
+            ], 403);
+        }
+
+        $updateData = [
+            'status' => \App\Enums\BorrowerStatus::REJECTED,
+            'rejected_by_id' => $user->id,
+            'rejected_at' => now(),
+            'rejection_reason' => $validated['reason'],
+            'risk_assessment' => $validated['riskAssessment'] ?? $borrower->risk_assessment,
+            'risk_description' => $validated['riskDescription'] ?? $borrower->risk_description,
+        ];
+
+        if ($user->isLoanManager()) {
+            $updateData['reviewed_by_loan_manager_id'] = $user->id;
+            $updateData['loan_manager_reviewed_at'] = now();
+            $updateData['loan_manager_remarks'] = $validated['reason'];
+        } elseif ($user->isGeneralManager()) {
+            $updateData['reviewed_by_gm_id'] = $user->id;
+            $updateData['gm_reviewed_at'] = now();
+            $updateData['gm_remarks'] = $validated['reason'];
+        } elseif ($user->isManagingDirector()) {
+            $updateData['reviewed_by_md_id'] = $user->id;
+            $updateData['md_reviewed_at'] = now();
+            $updateData['md_remarks'] = $validated['reason'];
+            $updateData['board_decision'] = 'Rejected';
+            $updateData['board_decision_remarks'] = $validated['reason'];
+            $updateData['board_member_name'] = $user->name;
+            $updateData['board_decision_date'] = now()->toDateString();
+        }
+
+        $this->service->updateBorrower($id, $updateData);
+
         return response()->json([
             'status' => 'success',
-            'message' => 'Application rejected.'
+            'message' => 'Application rejected. Reason: ' . $validated['reason']
         ]);
+    }
+
+    public function getReviewHistory($id)
+    {
+        $borrower = $this->service->getBorrower($id);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $borrower->getReviewHistory()
+        ]);
+    }
+
+    private function normalizeReviewPayload(Request $request): array
+    {
+        $payload = $request->all();
+
+        if (isset($payload['remarks']) && is_string($payload['remarks'])) {
+            $decoded = json_decode($payload['remarks'], true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $payload = array_merge($payload, $decoded);
+            }
+        }
+
+        return $payload;
+    }
+
+    private function normalizeDecision(?string $decision): ?string
+    {
+        if (!$decision) {
+            return null;
+        }
+
+        return match (strtolower(trim($decision))) {
+            'approved' => 'Approved',
+            'rejected' => 'Rejected',
+            'conditional', 'deferred' => 'Conditional',
+            default => null,
+        };
     }
 }
