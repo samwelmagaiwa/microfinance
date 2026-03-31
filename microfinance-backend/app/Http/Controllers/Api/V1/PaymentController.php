@@ -41,10 +41,20 @@ class PaymentController extends Controller
             'transaction_reference' => 'nullable|string',
         ]);
 
+        $payment = $this->service->createPayment($data);
+
+        \App\Models\AuditLog::log(
+            'payment_created',
+            'Payment',
+            $payment->id,
+            null,
+            $data
+        );
+
         return response()->json([
             'status' => 'success',
             'message' => 'Payment recorded successfully.',
-            'data' => $this->service->createPayment($data)
+            'data' => $payment
         ], 201);
     }
 

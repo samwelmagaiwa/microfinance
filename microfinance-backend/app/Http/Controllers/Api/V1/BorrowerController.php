@@ -241,33 +241,6 @@ class BorrowerController extends Controller
             'group_leadership_acknowledgements.*.signedAt' => 'nullable|date',
             'group_leadership_acknowledgements.*.thumbprintConfirmed' => 'nullable|boolean',
 
-            // Jikwamue Collateral
-            'collateral_vehicle_owner' => 'nullable|string',
-            'collateral_vehicle_type' => 'nullable|string',
-            'collateral_vehicle_reg_no' => 'nullable|string',
-            'collateral_vehicle_engine_no' => 'nullable|string',
-            'collateral_vehicle_chassis_no' => 'nullable|string',
-            'collateral_vehicle_model' => 'nullable|string',
-            'collateral_vehicle_color' => 'nullable|string',
-            'collateral_vehicle_insurance_type' => 'nullable|string',
-            'collateral_vehicle_insurance_provider' => 'nullable|string',
-            'collateral_vehicle_value' => 'nullable|numeric',
-            'collateral_vehicle_forced_sale_value' => 'nullable|numeric',
-            'collateral_land_type' => 'nullable|string',
-            'collateral_land_owner' => 'nullable|string',
-            'collateral_land_kitalu' => 'nullable|string',
-            'collateral_land_plot_no' => 'nullable|string',
-            'collateral_land_description' => 'nullable|string',
-            'collateral_land_value' => 'nullable|numeric',
-            'collateral_land_forced_sale_value' => 'nullable|numeric',
-            'project_description' => 'nullable|string',
-            'business_legal_status' => 'nullable|string',
-            'business_occupancy' => 'nullable|string',
-            'landlord_name' => 'nullable|string',
-            'landlord_phone' => 'nullable|string',
-            'landlord_address' => 'nullable|string',
-            'rent_duration' => 'nullable|string',
-            'previous_business_location' => 'nullable|string',
             
             // Internal / Oath
             'borrower_account_number' => 'nullable|string',
@@ -294,6 +267,7 @@ class BorrowerController extends Controller
             'local_govt_verification_date' => 'nullable|date',
             'local_govt_stamp' => 'nullable|boolean',
             'proof_of_address_description' => 'nullable|string',
+            'calculated_capacity' => 'nullable|numeric',
             'risk_high' => 'nullable|boolean',
             'risk_medium' => 'nullable|boolean',
             'risk_low' => 'nullable|boolean',
@@ -538,6 +512,11 @@ class BorrowerController extends Controller
                     'rejection_reason' => $validated['decisionRemarks'] ?? $validated['remarks'] ?? 'Rejected by Managing Director',
                 ]);
             }
+
+            if ($nextStatus === \App\Enums\BorrowerStatus::APPROVED && $borrower->loan_amount > 0) {
+                $loan = $this->createLoanFromBorrower($borrower);
+                $updateData['loan_number'] = $loan->loan_number;
+            }
         }
 
         if (!$nextStatus) {
@@ -548,6 +527,14 @@ class BorrowerController extends Controller
         }
 
         $this->service->updateBorrower($id, $updateData);
+
+        \App\Models\AuditLog::log(
+            'borrower_approved',
+            'Borrower',
+            $borrower->id,
+            ['status' => $borrower->status->value],
+            ['status' => $nextStatus->value]
+        );
 
         return response()->json([
             'status' => 'success',
@@ -614,6 +601,14 @@ class BorrowerController extends Controller
 
         $this->service->updateBorrower($id, $updateData);
 
+        \App\Models\AuditLog::log(
+            'borrower_rejected',
+            'Borrower',
+            $borrower->id,
+            ['status' => $borrower->status->value],
+            ['status' => 'rejected', 'reason' => $validated['reason']]
+        );
+
         return response()->json([
             'status' => 'success',
             'message' => 'Application rejected. Reason: ' . $validated['reason']
@@ -628,6 +623,82 @@ class BorrowerController extends Controller
             'status' => 'success',
             'data' => $borrower->getReviewHistory()
         ]);
+    }
+
+    private function createLoanFromBorrower($borrower): \App\Models\Loan
+    {
+        $interestRate = $borrower->interest_rate ?? 15;
+        $principal = $borrower->loan_amount;
+        $duration = $borrower->repayment_period ?? 12;
+        
+        $monthlyInterest = $interestRate / 100 / 12;
+        $monthlyPayment = $principal * $monthlyInterest * pow(1 + $monthlyInterest, $duration) / (pow(1 + $monthlyInterest, $duration) - 1);
+        $totalPayment = $monthlyPayment * $duration;
+        $totalInterest = $totalPayment - $principal;
+
+        $loanNumber = 'LN-' . date('Y') . '-' . str_pad($borrower->id, 5, '0', STR_PAD_LEFT);
+        $disbursementDate = $borrower->repayment_start_date ?? now()->addMonth();
+        $firstPaymentDate = $disbursementDate->copy()->addMonths(1);
+
+        $guarantor1 = $borrower->guarantor1 ?? [];
+        $guarantor2 = $borrower->guarantor2 ?? [];
+
+        $collateralParts = [];
+        if ($borrower->collateral_vehicle_reg_no) {
+            $collateralParts[] = 'Vehicle: ' . $borrower->collateral_vehicle_reg_no;
+        }
+        if ($borrower->collateral_land_plot_no) {
+            $collateralParts[] = 'Land: ' . $borrower->collateral_land_plot_no;
+        }
+
+        $loan = \App\Models\Loan::create([
+            'borrower_id' => $borrower->id,
+            'loan_number' => $loanNumber,
+            'amount' => $principal,
+            'interest_rate' => $interestRate,
+            'duration_months' => $duration,
+            'status' => 'active',
+            'disbursed_at' => $disbursementDate,
+            'first_payment_date' => $firstPaymentDate,
+            'monthly_payment' => round($monthlyPayment, 2),
+            'total_interest' => round($totalInterest, 2),
+            'total_payment' => round($totalPayment, 2),
+            'loan_product' => $borrower->loan_product,
+            'repayment_method' => $borrower->repayment_method,
+            'repayment_frequency' => $borrower->repayment_frequency ?? 'monthly',
+            'collateral_description' => implode('; ', $collateralParts),
+            'guarantor1_name' => $guarantor1['full_name'] ?? null,
+            'guarantor1_phone' => $guarantor1['phone'] ?? null,
+            'guarantor2_name' => $guarantor2['full_name'] ?? null,
+            'guarantor2_phone' => $guarantor2['phone'] ?? null,
+        ]);
+
+        $this->generateLoanSchedules($loan, $disbursementDate, $duration, round($monthlyPayment, 2));
+
+        return $loan;
+    }
+
+    private function generateLoanSchedules(\App\Models\Loan $loan, $startDate, int $months, float $monthlyPayment): void
+    {
+        $schedules = [];
+        $currentDate = $startDate->copy()->addMonths(1);
+
+        for ($i = 1; $i <= $months; $i++) {
+            $schedules[] = [
+                'loan_id' => $loan->id,
+                'schedule_number' => $i,
+                'due_date' => $currentDate->toDateString(),
+                'principal' => round($monthlyPayment * 0.7, 2),
+                'interest' => round($monthlyPayment * 0.3, 2),
+                'total_payment' => $monthlyPayment,
+                'status' => 'unpaid',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+            $currentDate->addMonths(1);
+        }
+
+        \App\Models\LoanSchedule::insert($schedules);
     }
 
     private function normalizeReviewPayload(Request $request): array

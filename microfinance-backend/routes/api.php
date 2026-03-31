@@ -7,6 +7,10 @@ use App\Http\Controllers\Api\V1\BorrowerController;
 use App\Http\Controllers\Api\V1\LoanController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\AuditLogController;
+use App\Http\Controllers\Api\V1\ReportController;
+use App\Http\Controllers\Api\V1\LoanCalculatorController;
+use App\Http\Controllers\Api\V1\AffordabilityController;
 
 /*
 |--------------------------------------------------------------------------
@@ -17,7 +21,13 @@ use App\Http\Controllers\Api\V1\DashboardController;
 Route::prefix('v1')->group(function () {
     // Public routes
     Route::post('login', [AuthController::class, 'login']);
-
+    
+    // Loan Calculator (public - no auth required)
+    Route::post('loan/calculate', [LoanCalculatorController::class, 'calculate']);
+    
+    // Affordability Calculator
+    Route::post('affordability/calculate', [AffordabilityController::class, 'calculate']);
+    
     // Protected routes
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
@@ -29,9 +39,13 @@ Route::prefix('v1')->group(function () {
 
         // Management & GM Routes
         Route::middleware('role:admin,managing_director,general_manager')->group(function () {
-            // High-level reports, deletions, audit logs (not implemented yet)
+            // High-level reports, deletions, audit logs
             Route::delete('loans/{loan}', [LoanController::class, 'destroy']);
             Route::delete('borrowers/{borrower}', [BorrowerController::class, 'destroy']);
+            Route::get('audit-logs', [AuditLogController::class, 'index']);
+            Route::get('audit-logs/{id}', [AuditLogController::class, 'show']);
+            Route::get('reports/financial', [ReportController::class, 'financial']);
+            Route::get('reports/performance', [ReportController::class, 'performance']);
         });
 
         // Loan Management
@@ -48,6 +62,11 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('borrowers', BorrowerController::class)->except(['destroy']);
             Route::apiResource('loans', LoanController::class)->except(['destroy']);
             Route::apiResource('payments', PaymentController::class)->only(['index', 'show', 'store']);
+            
+            // Affordability assessments
+            Route::post('affordability/store', [AffordabilityController::class, 'store']);
+            Route::get('affordability/{borrower}', [AffordabilityController::class, 'show']);
+            Route::get('affordability/{borrower}/history', [AffordabilityController::class, 'history']);
         });
 
         // Client specific routes

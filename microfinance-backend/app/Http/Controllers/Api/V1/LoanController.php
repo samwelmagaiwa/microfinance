@@ -41,11 +41,20 @@ class LoanController extends Controller
         ]);
 
         $data['status'] = 'pending';
+        $loan = $this->service->createLoan($data);
+
+        \App\Models\AuditLog::log(
+            'loan_created',
+            'Loan',
+            $loan->id,
+            null,
+            $data
+        );
 
         return response()->json([
             'status' => 'success',
             'message' => 'Loan application submitted successfully.',
-            'data' => $this->service->createLoan($data)
+            'data' => $loan
         ], 201);
     }
 
@@ -68,10 +77,23 @@ class LoanController extends Controller
 
     public function approve($id)
     {
+        $loan = $this->service->getLoan($id);
+        $oldStatus = $loan->status;
+        
+        $loan = $this->service->approveLoan($id);
+
+        \App\Models\AuditLog::log(
+            'loan_approved',
+            'Loan',
+            $id,
+            ['status' => $oldStatus],
+            ['status' => 'active']
+        );
+
         return response()->json([
             'status' => 'success',
             'message' => 'Loan has been approved and activated.',
-            'data' => $this->service->approveLoan($id)
+            'data' => $loan
         ]);
     }
 

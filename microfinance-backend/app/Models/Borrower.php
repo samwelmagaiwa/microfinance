@@ -308,6 +308,16 @@ class Borrower extends Model
         return $this->hasMany(GroupMemberSignatory::class);
     }
 
+    public function affordabilityAssessments()
+    {
+        return $this->hasMany(AffordabilityAssessment::class);
+    }
+
+    public function latestAffordabilityAssessment()
+    {
+        return $this->hasOne(AffordabilityAssessment::class)->latestOfMany();
+    }
+
     public function activeLoan()
     {
         return $this->hasOne(Loan::class)->where('status', 'active');
