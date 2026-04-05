@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\LoanCalculatorController;
 use App\Http\Controllers\Api\V1\AffordabilityController;
+use App\Http\Controllers\Api\V1\DigitalSignatureController;
 
 /*
 |--------------------------------------------------------------------------
@@ -49,9 +50,12 @@ Route::prefix('v1')->group(function () {
         });
 
         // Loan Management
-        Route::middleware('role:admin,managing_director,general_manager,loan_manager')->group(function () {
+        Route::middleware('role:admin,managing_director,general_manager,loan_manager,loan_officer')->group(function () {
             // Approval logics, updating terms
             Route::patch('loans/{loan}/approve', [LoanController::class, 'approve']);
+            Route::patch('loans/{loan}/approve-step', [LoanController::class, 'approveStep']);
+            Route::patch('loans/{loan}/reject', [LoanController::class, 'reject']);
+            Route::get('loans/{loan}/approval-status', [LoanController::class, 'getApprovalStatus']);
             Route::patch('borrowers/{borrower}/approve', [BorrowerController::class, 'approve']);
             Route::patch('borrowers/{borrower}/reject', [BorrowerController::class, 'reject']);
             Route::get('borrowers/{borrower}/review-history', [BorrowerController::class, 'getReviewHistory']);
@@ -80,6 +84,15 @@ Route::prefix('v1')->group(function () {
         // User info
         Route::get('user', function (Request $request) {
             return response()->json(['data' => $request->user()]);
+        });
+
+        // Digital Signatures
+        Route::middleware('role:admin,managing_director,general_manager,loan_manager,loan_officer')->group(function () {
+            Route::post('signatures', [DigitalSignatureController::class, 'store']);
+            Route::get('signatures', [DigitalSignatureController::class, 'index']);
+            Route::get('signatures/approval-status', [DigitalSignatureController::class, 'approvalStatus']);
+            Route::post('signatures/verify', [DigitalSignatureController::class, 'verify']);
+            Route::patch('signatures/reject', [DigitalSignatureController::class, 'reject']);
         });
     });
 });

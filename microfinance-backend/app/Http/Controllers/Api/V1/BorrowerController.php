@@ -625,6 +625,37 @@ class BorrowerController extends Controller
         ]);
     }
 
+    public function destroy($id)
+    {
+        $borrower = $this->service->getBorrower($id);
+        
+        $hasActiveLoan = \App\Models\Loan::where('borrower_id', $id)
+            ->whereIn('status', ['active', 'disbursed', 'pending'])
+            ->exists();
+        
+        if ($hasActiveLoan) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Cannot delete borrower with active loan'
+            ], 422);
+        }
+
+        $borrower->delete();
+
+        \App\Models\AuditLog::log(
+            'borrower_deleted',
+            'Borrower',
+            $id,
+            ['full_name' => $borrower->full_name],
+            null
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Borrower deleted successfully'
+        ]);
+    }
+
     private function createLoanFromBorrower($borrower): \App\Models\Loan
     {
         $interestRate = $borrower->interest_rate ?? 15;

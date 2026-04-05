@@ -29,6 +29,28 @@ class Loan extends Model
         'guarantor1_phone',
         'guarantor2_name',
         'guarantor2_phone',
+        'approval_status',
+        'current_approval_step',
+        'loan_officer_id',
+        'loan_officer_signature_id',
+        'loan_officer_approved_at',
+        'loan_officer_hash',
+        'loan_manager_id',
+        'loan_manager_signature_id',
+        'loan_manager_approved_at',
+        'loan_manager_hash',
+        'general_manager_id',
+        'general_manager_signature_id',
+        'general_manager_approved_at',
+        'general_manager_hash',
+        'managing_director_id',
+        'managing_director_signature_id',
+        'managing_director_approved_at',
+        'managing_director_hash',
+        'rejection_reason',
+        'rejected_by',
+        'document_hash',
+        'hash_generated_at',
     ];
 
     protected function casts(): array
@@ -67,5 +89,30 @@ class Loan extends Model
         return $this->hasOne(LoanSchedule::class)
             ->where('status', 'unpaid')
             ->orderBy('due_date', 'asc');
+    }
+
+    public function loanOfficer()
+    {
+        return $this->belongsTo(User::class, 'loan_officer_id');
+    }
+
+    public function loanManager()
+    {
+        return $this->belongsTo(User::class, 'loan_manager_id');
+    }
+
+    public function generalManager()
+    {
+        return $this->belongsTo(User::class, 'general_manager_id');
+    }
+
+    public function managingDirector()
+    {
+        return $this->belongsTo(User::class, 'managing_director_id');
+    }
+
+    public function rejectedByUser()
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
     }
 }
