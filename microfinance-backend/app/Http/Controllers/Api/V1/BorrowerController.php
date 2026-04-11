@@ -21,7 +21,32 @@ class BorrowerController extends Controller
     public function index(Request $request)
     {
         $status = $request->query('status');
-        $borrowers = $this->service->getAllBorrowers($status);
+        $user = request()->user();
+        
+        $query = \App\Models\Borrower::with(['documents', 'groupSignatories']);
+        
+        // Role-based filtering for approvals
+        if ($status) {
+            // Handle both string and enum
+            if (str_contains($status, '_')) {
+                $status = \App\Enums\BorrowerStatus::tryFrom($status)?->value ?? $status;
+            }
+            $query->where('status', $status);
+        } else {
+            // No status filter - apply role-based view
+            if ($user->isLoanManager() || $user->isGeneralManager() || $user->isManagingDirector()) {
+                $query->whereIn('status', [
+                    \App\Enums\BorrowerStatus::PENDING_LOAN_MANAGER->value,
+                    \App\Enums\BorrowerStatus::PENDING_GENERAL_MANAGER->value,
+                    \App\Enums\BorrowerStatus::PENDING_MANAGING_DIRECTOR->value,
+                    \App\Enums\BorrowerStatus::APPROVED->value,
+                    \App\Enums\BorrowerStatus::CONDITIONAL->value
+                ]);
+            }
+            // Others (admin, loan_officer, secretary) see all borrowers - no filter
+        }
+        
+        $borrowers = $query->orderBy('id', 'desc')->get();
         
         return response()->json([
             'status' => 'success',
@@ -557,7 +582,11 @@ class BorrowerController extends Controller
 
         // Check if user can reject at current stage
         $canReject = false;
-        if ($user->isLoanManager() && $borrower->status === \App\Enums\BorrowerStatus::PENDING_LOAN_MANAGER) {
+        
+        // Loan officer can cancel any application at any stage
+        if ($user->isLoanOfficer()) {
+            $canReject = true;
+        } elseif ($user->isLoanManager() && $borrower->status === \App\Enums\BorrowerStatus::PENDING_LOAN_MANAGER) {
             $canReject = true;
         } elseif ($user->isGeneralManager() && $borrower->status === \App\Enums\BorrowerStatus::PENDING_GENERAL_MANAGER) {
             $canReject = true;
@@ -581,7 +610,11 @@ class BorrowerController extends Controller
             'risk_description' => $validated['riskDescription'] ?? $borrower->risk_description,
         ];
 
-        if ($user->isLoanManager()) {
+        if ($user->isLoanOfficer()) {
+            $updateData['reviewed_by_loan_manager_id'] = $user->id;
+            $updateData['loan_manager_reviewed_at'] = now();
+            $updateData['loan_manager_remarks'] = $validated['reason'];
+        } elseif ($user->isLoanManager()) {
             $updateData['reviewed_by_loan_manager_id'] = $user->id;
             $updateData['loan_manager_reviewed_at'] = now();
             $updateData['loan_manager_remarks'] = $validated['reason'];
@@ -634,19 +667,17 @@ class BorrowerController extends Controller
             ->exists();
         
         if ($hasActiveLoan) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Cannot delete borrower with active loan'
-            ], 422);
+            \App\Models\Loan::where('borrower_id', $id)->delete();
         }
-
+        
+        $borrowerName = $borrower->full_name;
         $borrower->delete();
 
         \App\Models\AuditLog::log(
             'borrower_deleted',
             'Borrower',
             $id,
-            ['full_name' => $borrower->full_name],
+            ['full_name' => $borrowerName],
             null
         );
 
@@ -713,15 +744,16 @@ class BorrowerController extends Controller
     {
         $schedules = [];
         $currentDate = $startDate->copy()->addMonths(1);
+        $principalAmount = round($monthlyPayment * 0.7, 2);
+        $interestAmount = round($monthlyPayment * 0.3, 2);
 
         for ($i = 1; $i <= $months; $i++) {
             $schedules[] = [
                 'loan_id' => $loan->id,
-                'schedule_number' => $i,
                 'due_date' => $currentDate->toDateString(),
-                'principal' => round($monthlyPayment * 0.7, 2),
-                'interest' => round($monthlyPayment * 0.3, 2),
-                'total_payment' => $monthlyPayment,
+                'principal_amount' => $principalAmount,
+                'interest_amount' => $interestAmount,
+                'total_due' => $monthlyPayment,
                 'status' => 'unpaid',
                 'created_at' => now(),
                 'updated_at' => now(),

@@ -39,7 +39,7 @@ Route::prefix('v1')->group(function () {
         });
 
         // Management & GM Routes
-        Route::middleware('role:admin,managing_director,general_manager')->group(function () {
+        Route::middleware('role:admin,managing_director,general_manager,loan_officer')->group(function () {
             // High-level reports, deletions, audit logs
             Route::delete('loans/{loan}', [LoanController::class, 'destroy']);
             Route::delete('borrowers/{borrower}', [BorrowerController::class, 'destroy']);

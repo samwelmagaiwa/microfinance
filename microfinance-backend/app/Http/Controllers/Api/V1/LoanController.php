@@ -20,9 +20,46 @@ class LoanController extends Controller
 
     public function index()
     {
+        $user = request()->user();
+        $all = request()->query('all');
+        
+        $query = \App\Models\Loan::with('borrower');
+        
+        // If 'all' parameter is provided, skip role filtering (for loan history)
+        if ($all) {
+            return response()->json([
+                'status' => 'success',
+                'data' => $query->orderBy('id', 'desc')->get()
+            ]);
+        }
+        
+        // Role-based filtering for approvals
+        if ($user->isLoanManager()) {
+            // LM sees: pending_loan_manager OR already approved by LM OR approved
+            $query->where(function($q) {
+                $q->where('approval_status', 'pending_loan_manager')
+                  ->orWhereNotNull('loan_manager_hash')
+                  ->orWhere('approval_status', 'approved');
+            });
+        } elseif ($user->isGeneralManager()) {
+            // GM sees: pending_general_manager OR already approved by GM OR approved (LM approved)
+            $query->where(function($q) {
+                $q->where('approval_status', 'pending_general_manager')
+                  ->orWhereNotNull('general_manager_hash')
+                  ->orWhere('approval_status', 'approved');
+            });
+        } elseif ($user->isManagingDirector()) {
+            // MD sees: pending_managing_director OR already approved by MD OR approved (GM approved)
+            $query->where(function($q) {
+                $q->where('approval_status', 'pending_managing_director')
+                  ->orWhereNotNull('managing_director_hash')
+                  ->orWhere('approval_status', 'approved');
+            });
+        }
+        
         return response()->json([
             'status' => 'success',
-            'data' => $this->service->getAllLoans()
+            'data' => $query->orderBy('id', 'desc')->get()
         ]);
     }
 
