@@ -226,6 +226,17 @@ class Borrower extends Model
         'repayment_means',
         'net_asset_value',
 
+        // Employment & Business Status (new 2026-04-11)
+        'is_employed',
+        'has_business',
+
+        // Collateral (for non-employed)
+        'collateral_type',
+        'collateral_registration_number',
+        'collateral_ownership',
+        'collateral_current_value',
+        'collateral_appearance',
+
         // Employment Loan specific (added 2026-03-16)
         'net_salary',
         'moving_reason',

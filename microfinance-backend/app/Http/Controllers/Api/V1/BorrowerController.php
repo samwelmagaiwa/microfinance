@@ -224,6 +224,17 @@ class BorrowerController extends Controller
             'repayment_means' => 'nullable|string',
             'net_asset_value' => 'nullable|numeric',
 
+            // Employment & Business Status (new)
+            'is_employed' => 'nullable|in:ndiyo,hapana',
+            'has_business' => 'nullable|in:ndiyo,hapana',
+
+            // Collateral (new - for non-employed)
+            'collateral_type' => 'nullable|string',
+            'collateral_registration_number' => 'nullable|string',
+            'collateral_ownership' => 'nullable|string',
+            'collateral_current_value' => 'nullable|numeric',
+            'collateral_appearance' => 'nullable|string',
+
             // ORETHAN Specific
             'pf_number' => 'nullable|string',
             'retirement_date' => 'nullable|date',
@@ -404,6 +415,13 @@ class BorrowerController extends Controller
 
         $borrower = DB::transaction(function () use ($data, $request, $attachments, $documentTypes) {
             $borrower = $this->service->createBorrower($data);
+
+            // Create loan immediately upon submission with LAN
+            if (!empty($data['loan_amount']) && $data['loan_amount'] > 0) {
+                $loan = $this->createLoanFromBorrower($borrower);
+                $borrower->loan_number = $loan->loan_number;
+                $borrower->save();
+            }
 
             foreach ($documentTypes as $type) {
                 if (!isset($attachments[$type]) || !$request->hasFile($type)) {
@@ -698,7 +716,10 @@ class BorrowerController extends Controller
         $totalPayment = $monthlyPayment * $duration;
         $totalInterest = $totalPayment - $principal;
 
-        $loanNumber = 'LN-' . date('Y') . '-' . str_pad($borrower->id, 5, '0', STR_PAD_LEFT);
+        // Generate Loan Account Number (LAN): ZAK/{PRODUCT}/YYYYMM/#####
+        $productCode = $this->getProductCode($borrower);
+        $loanNumber = $this->generateLoanAccountNumber($productCode);
+        
         $disbursementDate = $borrower->repayment_start_date ?? now()->addMonth();
         $firstPaymentDate = $disbursementDate->copy()->addMonths(1);
 
@@ -733,11 +754,56 @@ class BorrowerController extends Controller
             'guarantor1_phone' => $guarantor1['phone'] ?? null,
             'guarantor2_name' => $guarantor2['full_name'] ?? null,
             'guarantor2_phone' => $guarantor2['phone'] ?? null,
+            'is_employed' => $borrower->is_employed,
+            'has_business' => $borrower->has_business,
+            'collateral_type' => $borrower->collateral_type,
+            'collateral_registration_number' => $borrower->collateral_registration_number,
+            'collateral_ownership' => $borrower->collateral_ownership,
+            'collateral_current_value' => $borrower->collateral_current_value,
+            'collateral_appearance' => $borrower->collateral_appearance,
         ]);
 
         $this->generateLoanSchedules($loan, $disbursementDate, $duration, round($monthlyPayment, 2));
 
         return $loan;
+    }
+
+    private function getProductCode($borrower): string
+    {
+        $loanProduct = strtoupper($borrower->loan_product ?? '');
+        
+        if (str_contains($loanProduct, 'KIKUNDI')) {
+            return 'GRP';
+        }
+        
+        if ($borrower->is_employed === 'ndiyo') {
+            return 'EMP';
+        }
+        
+        return 'BSN';
+    }
+
+    private function generateLoanAccountNumber(string $productCode): string
+    {
+        $yearMonth = now()->format('Ym');
+        $sequence = $this->getNextLoanSequence($yearMonth);
+        return "ZAK/{$productCode}/{$yearMonth}/" . str_pad($sequence, 5, '0', STR_PAD_LEFT);
+    }
+
+    private function getNextLoanSequence(string $yearMonth): int
+    {
+        $prefix = "ZAK/";
+        $latestLoan = \App\Models\Loan::where('loan_number', 'like', "%{$yearMonth}/%")
+            ->orderBy('loan_number', 'desc')
+            ->first();
+            
+        if ($latestLoan) {
+            $parts = explode('/', $latestLoan->loan_number);
+            $lastSequence = (int) end($parts);
+            return $lastSequence + 1;
+        }
+        
+        return 1;
     }
 
     private function generateLoanSchedules(\App\Models\Loan $loan, $startDate, int $months, float $monthlyPayment): void

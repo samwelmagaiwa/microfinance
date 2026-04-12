@@ -32,6 +32,7 @@ Route::prefix('v1')->group(function () {
     // Protected routes
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
+        Route::post('auth/verify-password', [AuthController::class, 'verifyPassword']);
 
         // Staff dashboard - versioned and role gated
         Route::middleware('role:admin,managing_director,general_manager,loan_manager,loan_officer,secretary')->group(function () {
@@ -55,6 +56,7 @@ Route::prefix('v1')->group(function () {
             Route::patch('loans/{loan}/approve', [LoanController::class, 'approve']);
             Route::patch('loans/{loan}/approve-step', [LoanController::class, 'approveStep']);
             Route::patch('loans/{loan}/reject', [LoanController::class, 'reject']);
+            Route::patch('loans/{loan}/disburse', [LoanController::class, 'disburse']);
             Route::get('loans/{loan}/approval-status', [LoanController::class, 'getApprovalStatus']);
             Route::patch('borrowers/{borrower}/approve', [BorrowerController::class, 'approve']);
             Route::patch('borrowers/{borrower}/reject', [BorrowerController::class, 'reject']);

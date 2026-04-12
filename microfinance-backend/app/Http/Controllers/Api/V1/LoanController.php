@@ -132,12 +132,79 @@ class LoanController extends Controller
             ['status' => 'active']
         );
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Loan has been approved and activated.',
-            'data' => $loan
-        ]);
-    }
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Loan has been rejected.',
+                'data' => $loan
+            ]);
+        }
+
+        public function disburse(Request $request, $id)
+        {
+            $request->validate([
+                'disbursementAmount' => 'required|numeric|min:0',
+                'paymentMethod' => 'required|in:bank,mobile,cash',
+                'transactionReference' => 'required|string',
+                'disbursementDate' => 'required|date',
+            ]);
+
+            $user = request()->user();
+            
+            // Only loan_manager can disburse
+            if (!$user->isLoanManager()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Only Loan Manager can process disbursement.'
+                ], 403);
+            }
+
+            $loan = \App\Models\Loan::findOrFail($id);
+            
+            // Check if already disbursed
+            if ($loan->disbursed_at) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Loan has already been disbursed.'
+                ], 422);
+            }
+
+            // Check if loan is approved
+            if (!in_array($loan->approval_status, ['approved', 'pending_disbursement'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Loan must be approved before disbursement.'
+                ], 422);
+            }
+
+            $loan->update([
+                'status' => 'disbursed',
+                'disbursed_at' => $request->disbursementDate,
+                'disbursed_by' => $user->id,
+                'disbursement_method' => $request->paymentMethod,
+                'disbursement_ref' => $request->transactionReference,
+                'disbursed_amount' => $request->disbursementAmount,
+            ]);
+
+            \App\Models\AuditLog::log(
+                'loan_disbursed',
+                'Loan',
+                $id,
+                null,
+                [
+                    'disbursed_by' => $user->id,
+                    'amount' => $request->disbursementAmount,
+                    'method' => $request->paymentMethod,
+                    'reference' => $request->transactionReference,
+                    'date' => $request->disbursementDate,
+                ]
+            );
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Disbursement completed successfully.',
+                'data' => $loan->fresh()
+            ]);
+        }
 
     public function approveStep(Request $request, $id)
     {
