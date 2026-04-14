@@ -358,7 +358,16 @@ export class MkopoKikundiComponent implements OnInit {
     this.submitting = true;
     const token = localStorage.getItem('token');
     
-    this.http.post(`${environment.apiUrl}/borrowers`, this.formData, {
+    // Final mapping for backend parity
+    const payload = { ...this.formData };
+    
+    // Map signatories to JSON array
+    payload.group_member_signatories = [
+      { name: this.formData.signatory1_name, phone: this.formData.signatory1_phone, sequence: 1 },
+      { name: this.formData.signatory2_name, phone: this.formData.signatory2_phone, sequence: 2 }
+    ];
+
+    this.http.post(`${environment.apiUrl}/borrowers`, payload, {
       headers: { Authorization: `Bearer ${token}` }
     }).subscribe({
       next: () => {

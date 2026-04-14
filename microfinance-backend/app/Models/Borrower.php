@@ -183,6 +183,8 @@ class Borrower extends Model
         'group_district',
         'group_ward',
         'group_village',
+        'group_previously_loaned',
+        'group_years',
         'date_joined_group',
         'local_govt_chairman_name',
         'local_govt_chairman_phone',
