@@ -115,6 +115,7 @@ class BorrowerController extends Controller
         $data = $request->validate([
             // Step 1: Profile
             'full_name' => 'required|string|max:255',
+            'nick_name' => 'nullable|string|max:255',
             'gender' => 'nullable|string',
             'date_of_birth' => 'nullable|date',
             'age' => 'nullable|integer',

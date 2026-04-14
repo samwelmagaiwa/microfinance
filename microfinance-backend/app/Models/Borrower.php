@@ -40,6 +40,7 @@ class Borrower extends Model
         'md_remarks',
         'rejection_reason',
         'full_name',
+        'nick_name',
         'gender',
         'date_of_birth',
         'age',
