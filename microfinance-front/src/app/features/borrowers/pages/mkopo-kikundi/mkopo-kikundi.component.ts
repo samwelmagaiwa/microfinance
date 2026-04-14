@@ -7,8 +7,7 @@ import { environment } from '../../../../core/environments/environment';
   selector: 'app-mkopo-kikundi',
   template: `
     <div class="application-form">
-      <h2>FOMU YA MAOMBI YA MKOPO WA KIKUNDI</h2>
-      <p class="subtitle">Orodha ya maombi ya mkopo kwa vikundi</p>
+
       
       <form (ngSubmit)="onSubmit()">
         <!-- Section 1: Group Leader Info -->
@@ -324,22 +323,22 @@ import { environment } from '../../../../core/environments/environment';
       </form>
     </div>
   `,
-  styles: [`
-    .application-form { max-width: 900px; margin: 0 auto; padding: 1rem; }
-    .application-form h2 { margin-bottom: 0.25rem; }
-    .subtitle { color: #6b7280; margin-bottom: 1.5rem; }
-    fieldset { background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid #e5e7eb; }
-    legend { font-weight: 700; color: #4f46e5; padding: 0 0.5rem; font-size: 1rem; }
-    legend + h4 { margin-top: 1rem; margin-bottom: 0.5rem; color: #374151; font-size: 0.9rem; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
-    .form-group { display: flex; flex-direction: column; }
-    .form-group label { margin-bottom: 0.35rem; font-weight: 500; font-size: 0.85rem; color: #374151; }
-    .form-group input, .form-group select, .form-group textarea { padding: 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; }
-    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #4f46e5; }
-    .form-actions { display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; }
-    .form-instruction { font-size: 0.8rem; color: #6b7280; margin-bottom: 1rem; font-style: italic; }
-    .signatory-list { border-top: 1px dashed #e5e7eb; padding-top: 1rem; }
-  `]
+   styles: [`
+     .application-form { max-width: 1600px; margin: 0 auto; padding: 1rem; }
+     .application-form h2 { margin-bottom: 0.25rem; }
+     .subtitle { color: #6b7280; margin-bottom: 1.5rem; }
+     fieldset { background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid #e5e7eb; }
+     legend { font-weight: 700; color: #4f46e5; padding: 0 0.5rem; font-size: 1rem; }
+     legend + h4 { margin-top: 1rem; margin-bottom: 0.5rem; color: #374151; font-size: 0.9rem; }
+     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+     .form-group { display: flex; flex-direction: column; }
+     .form-group label { margin-bottom: 0.35rem; font-weight: 500; font-size: 0.85rem; color: #374151; }
+     .form-group input, .form-group select, .form-group textarea { padding: 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; }
+     .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #4f46e5; }
+     .form-actions { display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; }
+     .form-instruction { font-size: 0.8rem; color: #6b7280; margin-bottom: 1rem; font-style: italic; }
+     .signatory-list { border-top: 1px dashed #e5e7eb; padding-top: 1rem; }
+   `]
 })
 export class MkopoKikundiComponent implements OnInit {
   formData: any = {

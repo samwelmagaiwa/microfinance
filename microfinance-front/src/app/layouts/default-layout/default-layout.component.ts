@@ -119,8 +119,8 @@ import { AuthService } from '../../core/services/auth.service';
     </div>
   `,
   styles: [`
-    .app-container { display: flex; min-height: 100vh; }
-    .sidebar { width: 260px; background: #1a1f36; color: white; padding: 1rem; display: flex; flex-direction: column; }
+    .app-container { display: flex; height: 100vh; overflow: hidden; }
+    .sidebar { width: 260px; background: #1a1f36; color: white; padding: 1rem; display: flex; flex-direction: column; height: 100vh; overflow-y: auto; }
     .brand { padding: 1rem 0.5rem; border-bottom: 1px solid #2d325a; margin-bottom: 1rem; }
     .brand h4 { margin: 0; font-weight: 700; font-size: 1.25rem; }
     .nav-menu { flex: 1; }
@@ -164,14 +164,14 @@ import { AuthService } from '../../core/services/auth.service';
     .elite-menu-item:hover .sub { color: #a5b4fc; }
     
     .role-indicator { padding: 0.75rem; background: #2d325a; border-radius: 6px; text-align: center; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-top: auto; }
-    .main-content { flex: 1; display: flex; flex-direction: column; }
-    .top-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem; background: white; border-bottom: 1px solid #e5e7eb; }
+    .main-content { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    .top-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem; background: white; border-bottom: 1px solid #e5e7eb; z-index: 100; box-shadow: 0 1px 2px rgba(0,0,0,0.05); flex-shrink: 0; }
     .top-header h3 { margin: 0; color: #1f2937; }
     .user-menu { display: flex; align-items: center; gap: 1rem; }
     .user-info { display: flex; flex-direction: column; text-align: right; }
     .user-name { font-weight: 600; color: #1f2937; }
     .user-role { font-size: 0.75rem; color: #6b7280; }
-    .content { padding: 1.5rem; background: #f3f4f6; flex: 1; }
+    .content { padding: 1.5rem; background: #f3f4f6; flex: 1; overflow-y: auto; }
   `]
 })
 export class DefaultLayoutComponent implements OnInit {
