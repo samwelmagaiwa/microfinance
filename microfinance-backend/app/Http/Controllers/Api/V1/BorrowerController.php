@@ -20,31 +20,70 @@ class BorrowerController extends Controller
 
     public function index(Request $request)
     {
-        $status = $request->query('status');
+        $statusParam = $request->query('status');
+        $searchParam = $request->query('search');
         $user = request()->user();
         
-        $query = \App\Models\Borrower::with(['documents', 'groupSignatories']);
+        $query = \App\Models\Borrower::with(['documents', 'groupSignatories', 'user', 'loanManagerReviewer', 'gmReviewer', 'mdReviewer']);
         
-        // Role-based filtering for approvals
-        if ($status) {
-            // Handle both string and enum
-            if (str_contains($status, '_')) {
-                $status = \App\Enums\BorrowerStatus::tryFrom($status)?->value ?? $status;
+        // 1. Apply explicit status filter if provided
+        // NOTE: status filter is authoritative for list screens like Rejected Applications
+        if ($statusParam) {
+            $actualStatus = $statusParam;
+            if (str_contains($statusParam, '_')) {
+                $statusEnum = \App\Enums\BorrowerStatus::tryFrom($statusParam);
+                if ($statusEnum) {
+                    $actualStatus = $statusEnum->value;
+                }
             }
-            $query->where('status', $status);
+            $query->where('status', $actualStatus);
         } else {
-            // No status filter - apply role-based view
-            if ($user->isLoanManager() || $user->isGeneralManager() || $user->isManagingDirector()) {
+            // 2. Apply default Role-based visibility constraints
+            if ($user->isLoanManager()) {
                 $query->whereIn('status', [
                     \App\Enums\BorrowerStatus::PENDING_LOAN_MANAGER->value,
+                    \App\Enums\BorrowerStatus::APPROVED->value,
+                    \App\Enums\BorrowerStatus::CONDITIONAL->value,
+                    \App\Enums\BorrowerStatus::REJECTED->value
+                ]);
+            } elseif ($user->isGeneralManager()) {
+                $query->whereIn('status', [
                     \App\Enums\BorrowerStatus::PENDING_GENERAL_MANAGER->value,
+                    \App\Enums\BorrowerStatus::APPROVED->value,
+                    \App\Enums\BorrowerStatus::CONDITIONAL->value,
+                    \App\Enums\BorrowerStatus::REJECTED->value
+                ]);
+            } elseif ($user->isManagingDirector()) {
+                $query->whereIn('status', [
                     \App\Enums\BorrowerStatus::PENDING_MANAGING_DIRECTOR->value,
                     \App\Enums\BorrowerStatus::APPROVED->value,
-                    \App\Enums\BorrowerStatus::CONDITIONAL->value
+                    \App\Enums\BorrowerStatus::CONDITIONAL->value,
+                    \App\Enums\BorrowerStatus::REJECTED->value
                 ]);
+            } elseif ($user->isLoanOfficer()) {
+                $query->where(function($q) use ($user) {
+                    $q->where('user_id', $user->id)
+                      ->orWhereIn('status', [
+                          \App\Enums\BorrowerStatus::PENDING_LOAN_MANAGER->value,
+                          \App\Enums\BorrowerStatus::APPROVED->value,
+                          \App\Enums\BorrowerStatus::CONDITIONAL->value,
+                          \App\Enums\BorrowerStatus::REJECTED->value
+                      ]);
+                });
             }
-            // Others (admin, loan_officer, secretary) see all borrowers - no filter
         }
+
+        // 3. Apply search if provided
+        if ($searchParam) {
+            $query->where(function($q) use ($searchParam) {
+                $q->where('full_name', 'like', "%{$searchParam}%")
+                  ->orWhere('nida_number', 'like', "%{$searchParam}%")
+                  ->orWhere('phone', 'like', "%{$searchParam}%")
+                  ->orWhere('loan_number', 'like', "%{$searchParam}%")
+                  ->orWhere('borrower_account_number', 'like', "%{$searchParam}%");
+            });
+        }
+        // Admin and others see all
         
         $borrowers = $query->orderBy('id', 'desc')->get();
         
@@ -56,9 +95,12 @@ class BorrowerController extends Controller
 
     public function show($id)
     {
+        $borrower = $this->service->getBorrower($id);
+        $borrower->load(['user', 'loanManagerReviewer', 'gmReviewer', 'mdReviewer']);
+        
         return response()->json([
             'status' => 'success',
-            'data' => $this->service->getBorrower($id)
+            'data' => $borrower
         ]);
     }
 
@@ -498,6 +540,7 @@ class BorrowerController extends Controller
             'decisionRemarks' => 'nullable|string|max:4000',
             'decisionName' => 'nullable|string|max:255',
             'decisionDate' => 'nullable|date',
+            'signatureHash' => 'nullable|string',
         ])->validate();
 
         $borrower = $this->service->getBorrower($id);
@@ -517,6 +560,8 @@ class BorrowerController extends Controller
                 'reviewed_by_loan_manager_id' => $user->id,
                 'loan_manager_reviewed_at' => now(),
                 'loan_manager_remarks' => $validated['loanManagerRemarks'] ?? $validated['remarks'] ?? $borrower->loan_manager_remarks,
+                'loan_manager_hash' => $validated['signatureHash'] ?? $borrower->loan_manager_hash,
+                'loan_manager_signed_at' => ($validated['signatureHash'] ?? null) ? now() : $borrower->loan_manager_signed_at,
             ]);
         }
         // General Manager Approval
@@ -527,6 +572,8 @@ class BorrowerController extends Controller
                 'reviewed_by_gm_id' => $user->id,
                 'gm_reviewed_at' => now(),
                 'gm_remarks' => $validated['gmRemarks'] ?? $validated['remarks'] ?? $borrower->gm_remarks,
+                'gm_hash' => $validated['signatureHash'] ?? $borrower->gm_hash,
+                'gm_signed_at' => ($validated['signatureHash'] ?? null) ? now() : $borrower->gm_signed_at,
             ]);
         }
         // Managing Director Final Approval
@@ -542,6 +589,8 @@ class BorrowerController extends Controller
                 'reviewed_by_md_id' => $user->id,
                 'md_reviewed_at' => now(),
                 'md_remarks' => $validated['mdRemarks'] ?? $validated['remarks'] ?? $borrower->md_remarks,
+                'md_hash' => $validated['signatureHash'] ?? $borrower->md_hash,
+                'md_signed_at' => ($validated['signatureHash'] ?? null) ? now() : $borrower->md_signed_at,
                 'board_decision' => $decision,
                 'board_decision_remarks' => $validated['decisionRemarks'] ?? $validated['remarks'] ?? $borrower->board_decision_remarks,
                 'board_member_name' => $validated['decisionName'] ?? $user->name,
@@ -557,8 +606,17 @@ class BorrowerController extends Controller
             }
 
             if ($nextStatus === \App\Enums\BorrowerStatus::APPROVED && $borrower->loan_amount > 0) {
-                $loan = $this->createLoanFromBorrower($borrower);
-                $updateData['loan_number'] = $loan->loan_number;
+                $existingLoan = $this->findWorkflowLoan($borrower->id);
+                if ($existingLoan) {
+                    $updateData['loan_number'] = $existingLoan->loan_number;
+                } else {
+                    $loan = $this->createLoanFromBorrower($borrower);
+                    $updateData['loan_number'] = $loan->loan_number;
+                }
+            }
+
+            if ($nextStatus === \App\Enums\BorrowerStatus::REJECTED) {
+                $this->markWorkflowLoanRejected($borrower->id, $updateData['rejection_reason'] ?? 'Rejected by Managing Director', $user->id);
             }
         }
 
@@ -569,7 +627,9 @@ class BorrowerController extends Controller
             ], 403);
         }
 
-        $this->service->updateBorrower($id, $updateData);
+        DB::transaction(function () use ($id, $updateData) {
+            $this->service->updateBorrower($id, $updateData);
+        });
 
         \App\Models\AuditLog::log(
             'borrower_approved',
@@ -619,8 +679,23 @@ class BorrowerController extends Controller
             ], 403);
         }
 
+        // Determine the previous status (returning for correction)
+        $newStatus = \App\Enums\BorrowerStatus::REJECTED;
+        $returnMessage = "Application has been rejected permanently.";
+
+        if ($user->isManagingDirector()) {
+            $newStatus = \App\Enums\BorrowerStatus::PENDING_GENERAL_MANAGER;
+            $returnMessage = "Application has been returned to General Manager for correction.";
+        } elseif ($user->isGeneralManager()) {
+            $newStatus = \App\Enums\BorrowerStatus::PENDING_LOAN_MANAGER;
+            $returnMessage = "Application has been returned to Loan Manager for correction.";
+        } elseif ($user->isLoanManager()) {
+            $newStatus = \App\Enums\BorrowerStatus::PENDING;
+            $returnMessage = "Application has been returned to Loan Officer for correction.";
+        }
+
         $updateData = [
-            'status' => \App\Enums\BorrowerStatus::REJECTED,
+            'status' => $newStatus,
             'rejected_by_id' => $user->id,
             'rejected_at' => now(),
             'rejection_reason' => $validated['reason'],
@@ -628,41 +703,45 @@ class BorrowerController extends Controller
             'risk_description' => $validated['riskDescription'] ?? $borrower->risk_description,
         ];
 
+        // Capture remarks for the returning role and clear their "approved" signature traces if we are returning
         if ($user->isLoanOfficer()) {
-            $updateData['reviewed_by_loan_manager_id'] = $user->id;
-            $updateData['loan_manager_reviewed_at'] = now();
+            $updateData['status'] = \App\Enums\BorrowerStatus::REJECTED; // LO rejection is still final
             $updateData['loan_manager_remarks'] = $validated['reason'];
         } elseif ($user->isLoanManager()) {
             $updateData['reviewed_by_loan_manager_id'] = $user->id;
-            $updateData['loan_manager_reviewed_at'] = now();
+            $updateData['loan_manager_reviewed_at'] = null; // Clear so it shows as 'not signed' for the next run
             $updateData['loan_manager_remarks'] = $validated['reason'];
+            $updateData['loan_manager_hash'] = null;
         } elseif ($user->isGeneralManager()) {
             $updateData['reviewed_by_gm_id'] = $user->id;
-            $updateData['gm_reviewed_at'] = now();
+            $updateData['gm_reviewed_at'] = null;
             $updateData['gm_remarks'] = $validated['reason'];
+            $updateData['gm_hash'] = null;
         } elseif ($user->isManagingDirector()) {
             $updateData['reviewed_by_md_id'] = $user->id;
-            $updateData['md_reviewed_at'] = now();
+            $updateData['md_reviewed_at'] = null;
             $updateData['md_remarks'] = $validated['reason'];
-            $updateData['board_decision'] = 'Rejected';
+            $updateData['md_hash'] = null;
+            $updateData['board_decision'] = 'Returned';
             $updateData['board_decision_remarks'] = $validated['reason'];
             $updateData['board_member_name'] = $user->name;
-            $updateData['board_decision_date'] = now()->toDateString();
         }
 
-        $this->service->updateBorrower($id, $updateData);
+        $borrower->update($updateData);
 
+        // Notify via AuditLog
         \App\Models\AuditLog::log(
-            'borrower_rejected',
+            'borrower_returned',
             'Borrower',
-            $borrower->id,
-            ['status' => $borrower->status->value],
-            ['status' => 'rejected', 'reason' => $validated['reason']]
+            $id,
+            null,
+            ['reason' => $validated['reason'], 'returned_by' => $user->id, 'new_status' => $newStatus->value]
         );
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Application rejected. Reason: ' . $validated['reason']
+            'message' => $returnMessage,
+            'data' => $borrower->fresh()
         ]);
     }
 
@@ -761,6 +840,8 @@ class BorrowerController extends Controller
             'collateral_ownership' => $borrower->collateral_ownership,
             'collateral_current_value' => $borrower->collateral_current_value,
             'collateral_appearance' => $borrower->collateral_appearance,
+            'approval_status' => 'pending_loan_officer',
+            'current_approval_step' => 'loan_officer',
         ]);
 
         $this->generateLoanSchedules($loan, $disbursementDate, $duration, round($monthlyPayment, 2));
@@ -804,6 +885,32 @@ class BorrowerController extends Controller
         }
         
         return 1;
+    }
+
+    private function findWorkflowLoan(int $borrowerId): ?\App\Models\Loan
+    {
+        return \App\Models\Loan::where('borrower_id', $borrowerId)
+            ->where(function ($q) {
+                $q->whereNull('approval_status')
+                  ->orWhere('approval_status', '!=', 'rejected');
+            })
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    private function markWorkflowLoanRejected(int $borrowerId, string $reason, int $userId): void
+    {
+        $loan = $this->findWorkflowLoan($borrowerId);
+        if (!$loan) {
+            return;
+        }
+
+        $loan->update([
+            'approval_status' => 'rejected',
+            'status' => 'rejected',
+            'rejection_reason' => $reason,
+            'rejected_by' => $userId,
+        ]);
     }
 
     private function generateLoanSchedules(\App\Models\Loan $loan, $startDate, int $months, float $monthlyPayment): void

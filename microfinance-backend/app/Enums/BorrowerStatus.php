@@ -4,6 +4,7 @@ namespace App\Enums;
 
 enum BorrowerStatus: string
 {
+    case PENDING = 'pending';
     case PENDING_LOAN_MANAGER = 'pending_loan_manager';
     case PENDING_GENERAL_MANAGER = 'pending_general_manager';
     case PENDING_MANAGING_DIRECTOR = 'pending_managing_director';
@@ -19,6 +20,7 @@ enum BorrowerStatus: string
     public function label(): string
     {
         return match($this) {
+            self::PENDING => 'Pending Loan Officer / Correction',
             self::PENDING_LOAN_MANAGER => 'Pending Loan Manager Review',
             self::PENDING_GENERAL_MANAGER => 'Pending General Manager Review',
             self::PENDING_MANAGING_DIRECTOR => 'Pending Managing Director Review',
@@ -31,6 +33,7 @@ enum BorrowerStatus: string
     public function getCurrentReviewer(): string
     {
         return match($this) {
+            self::PENDING => 'Loan Officer',
             self::PENDING_LOAN_MANAGER => 'Loan Manager',
             self::PENDING_GENERAL_MANAGER => 'General Manager',
             self::PENDING_MANAGING_DIRECTOR => 'Managing Director',

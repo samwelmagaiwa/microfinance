@@ -246,6 +246,16 @@ class Borrower extends Model
         'risk_high',
         'risk_medium',
         'risk_low',
+
+        // Digital Signature Fields
+        'loan_officer_hash',
+        'loan_officer_signed_at',
+        'loan_manager_hash',
+        'loan_manager_signed_at',
+        'gm_hash',
+        'gm_signed_at',
+        'md_hash',
+        'md_signed_at',
     ];
 
     protected function casts(): array
@@ -365,6 +375,7 @@ class Borrower extends Model
                 'date' => $this->loan_manager_reviewed_at,
                 'remarks' => $this->loan_manager_remarks,
                 'action' => 'Approved',
+                'signature_hash' => $this->loan_manager_hash,
             ];
         }
 
@@ -375,6 +386,7 @@ class Borrower extends Model
                 'date' => $this->gm_reviewed_at,
                 'remarks' => $this->gm_remarks,
                 'action' => 'Approved',
+                'signature_hash' => $this->gm_hash,
             ];
         }
 
@@ -385,6 +397,7 @@ class Borrower extends Model
                 'date' => $this->md_reviewed_at,
                 'remarks' => $this->md_remarks,
                 'action' => $this->board_decision ?? 'Final Approval',
+                'signature_hash' => $this->md_hash,
             ];
         }
 
