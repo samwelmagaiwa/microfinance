@@ -1,0 +1,28 @@
+# Frontend
+microfinance-front/node_modules/
+microfinance-front/dist/
+microfinance-front/.angular/
+microfinance-front/tmp/
+microfinance-front/.vscode/
+
+# Backend
+microfinance-backend/vendor/
+microfinance-backend/.env
+microfinance-backend/storage/*.key
+microfinance-backend/storage/framework/cache/data/*
+microfinance-backend/storage/framework/sessions/*
+microfinance-backend/storage/framework/testing/*
+microfinance-backend/storage/framework/views/*
+microfinance-backend/storage/logs/*.log
+microfinance-backend/public/storage
+microfinance-backend/public/hot
+
+# OS/Misc
+.DS_Store
+Thumbs.db
+*.exe
+scratch/
+cols.txt
+extract_fields.php
+list_columns.php
+inspect_varchars.php
